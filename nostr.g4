@@ -1,6 +1,10 @@
 // ANTLR4 grammar for the nostr protocol
 grammar nostr;
 
+nostr_msg: nostr_client_msg EOF | nostr_server_msg EOF;
+nostr_client_msg: nostr_client_event | nostr_req | nostr_close;
+nostr_server_msg: nostr_server_event | nostr_ok | nostr_eose | nostr_closed | nostr_notice;
+
 //
 // EVENT parser rules
 //
@@ -45,9 +49,11 @@ a_tag: '"a"' COMMA DOUBLE_QUOTE
                    hex_chars {len($hex_chars.text) == 64}? COLON
                    utf8_chars*
                    DOUBLE_QUOTE (COMMA relay_url)?;
+
 generic_tag: ((DOUBLE_QUOTE ascii_chars DOUBLE_QUOTE) | ascii_string)
              (COMMA (ascii_string | utf8_string))*;
-relay_url: 'wss:';
+
+relay_url: RELAY_URL_PREFIX (ascii_chars+ PERIOD)+ ascii_chars+;
 
 // Subscription ID is non-empty and has at most 64 chars
 subscription_id: ({len($text) <= 64}? utf8_chars)+;
@@ -115,10 +121,11 @@ since: '"since":' number;
 until: '"until":' number;
 limit: '"limit":' number;
 
-// TODO finish with more filters
-tag_filter: (e_tag_filter | p_tag_filter);
+tag_filter: (e_tag_filter | p_tag_filter | generic_tag_filter);
 e_tag_filter: '"#e":' LEFT_BRACKET hex64_string (COMMA hex64_string)* RIGHT_BRACKET;
 p_tag_filter: '"#p":' LEFT_BRACKET hex64_string (COMMA hex64_string)* RIGHT_BRACKET;
+generic_tag_filter: '"#' ascii_chars DOUBLE_QUOTE COLON LEFT_BRACKET utf8_string
+                    (COMMA utf8_string)* RIGHT_BRACKET;
 
 //
 // CLOSE parser rule
@@ -170,7 +177,6 @@ nostr_notice: LEFT_BRACKET
 number: DEC_DIGIT+ { ((not $text.startswith("0")) or len($text) == 1) }?;
 
 hex_chars: (DEC_DIGIT | LOWER_HEX_DIGIT)+;
-hex_string: DOUBLE_QUOTE hex_chars DOUBLE_QUOTE;
 hex64_string: DOUBLE_QUOTE hex_chars DOUBLE_QUOTE {len($text) == 64 + 2}?;
 hex128_string: DOUBLE_QUOTE hex_chars DOUBLE_QUOTE {len($text) == 128 + 2}?;
 
@@ -180,12 +186,15 @@ ascii_chars: LEFT_BRACKET |
              RIGHT_BRACE |
              COMMA |
              COLON |
+             PERIOD |
              DEC_DIGIT |
              LOWER_HEX_DIGIT |
              TAG_FILTER
              TRUE_FALSE |
+             RELAY_URL_PREFIX |
              ESC_CHARS |
              ASCII_NOT_ESCAPED;
+
 ascii_string: DOUBLE_QUOTE ascii_chars* DOUBLE_QUOTE;
 
 utf8_chars: ascii_chars | UTF8_NOT_ESCAPED;
@@ -214,10 +223,12 @@ LEFT_BRACE: '{';
 RIGHT_BRACE: '}';
 COMMA: ',';
 COLON: ':';
+PERIOD: '.';
 DEC_DIGIT: [0-9];
 LOWER_HEX_DIGIT: DEC_DIGIT | [a-f];
 TAG_FILTER: '"#' [a-zA-Z] '":';
 TRUE_FALSE: 'true' | 'false';
+RELAY_URL_PREFIX: 'ws://' | 'wss://';
 ESC_CHARS: '\\' [btnfr"\\];
 ASCII_NOT_ESCAPED:
   [\u{000000}-\u{000007}] | // escape 0x08, 0x09, 0x0a -> \b, \t, \n
