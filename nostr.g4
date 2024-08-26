@@ -15,7 +15,7 @@ nostr_server_event: LEFT_BRACKET
                     event_json
                     RIGHT_BRACKET;
 
-event_json: LEFT_BRACE 
+event_json: LEFT_BRACE
             id COMMA
             pubkey COMMA
             created_at COMMA
@@ -32,44 +32,22 @@ kind: '"kind":' number;
 content: '"content":' utf8_string;
 sig: '"sig":' hex128_string;
 
-// May want to define specific meaningful tags, then have a fallback catch-all
-// tag that is the general form
 tags: '"tags":' tag_array;
 tag_array: (LEFT_BRACKET RIGHT_BRACKET) | (LEFT_BRACKET tag (COMMA tag)* RIGHT_BRACKET);
 tag: LEFT_BRACKET (e_tag | p_tag | a_tag | generic_tag) RIGHT_BRACKET;
 
-// THOUGHT: embed existing structures into rules for generic strings to 
+// THOUGHT: embed existing structures into rules for generic strings to
 // try and fool parsing. We want to impose structure where we can (recursive issues)
 e_tag: '"e"' COMMA hex64_string (COMMA relay_url)?;
 p_tag: '"p"' COMMA hex64_string (COMMA relay_url)?;
-a_tag: '"a"' COMMA DOUBLE_QUOTE number COLON hex_chars COLON utf8_chars* DOUBLE_QUOTE
-             (COMMA relay_url);
-generic_tag: ((DOUBLE_QUOTE ascii_chars DOUBLE_QOUTE) | ascii_string)
-             (COMMA (ascii_string | utf8_string))*
+a_tag: '"a"' COMMA DOUBLE_QUOTE
+                   number COLON
+                   hex_chars {len($hex_chars.text) == 64}? COLON
+                   utf8_chars*
+                   DOUBLE_QUOTE (COMMA relay_url)?;
+generic_tag: ((DOUBLE_QUOTE ascii_chars DOUBLE_QUOTE) | ascii_string)
+             (COMMA (ascii_string | utf8_string))*;
 relay_url: 'wss:';
-
-//locals [valid_tag = True]:
-//LEFT_BRACKET tvl+=tag_value (COMMA tvl+=tag_value)* RIGHT_BRACKET
-//{
-//name = None
-//name_ctx = $ctx.tvl[0]
-//
-//if name_ctx.hex_string() is not None:
-//    name = name_ctx.hex_string().getText().strip('"')
-//else:
-//    name = name_ctx.utf8_string().getText().strip('"')
-//
-//print(f"Found tag name {name}")
-//
-//if name == "e" or name == "p":
-//    value_ctx = $ctx.tvl[1]
-//    if value_ctx.hex_string() is None:
-//        valid_tag = False
-//    else:
-//        value = value_ctx.hex_string().getText().strip('"')
-//        if len(value) != 64:
-//            valid_tag = False
-//};
 
 // Subscription ID is non-empty and has at most 64 chars
 subscription_id: ({len($text) <= 64}? utf8_chars)+;
@@ -104,18 +82,18 @@ LEFT_BRACE
 // in the code enclosed in {}.
 (lhs=filter_attr {$attr_set.add($lhs.text.split(':')[0])}
 
-// Match ', filter_attr' at least once (+). 
+// Match ', filter_attr' at least once (+).
 (COMMA rhs=filter_attr
 
 // Everything in {} is python code that ANTLR places into the parser. Since this
 // block is enclosed by the + operator, it gets executed on each iteration of
-// the match. We check if rhs_attr is in the $attr_set already; if so, there is a 
+// the match. We check if rhs_attr is in the $attr_set already; if so, there is a
 // duplicate, else we add to the set. Since the filter_attr rule only has 7
 // alternatives, this limits the possible number of attrs to 7. They can
-// appear in any order at most once. The zero or one case is captured in the 
-// first alternative above. Both alternatives as a whole give us all 7! 
+// appear in any order at most once. The zero or one case is captured in the
+// first alternative above. Both alternatives as a whole give us all 7!
 // permuations.
-{ 
+{
 rhs_attr = $rhs.text.split(':')[0]
 if rhs_attr in $attr_set:
     $duplicates = True
@@ -123,13 +101,13 @@ if rhs_attr in $attr_set:
 else:
     $attr_set.add($rhs.text.split(':')[0])
 })+
-// The semantic predicate in {...}? means the preceding (..)+ 
+// The semantic predicate in {...}? means the preceding (..)+
 // matches only if ... is True (i.e. there are no duplicate attrs).
 {$duplicates == False}?
 ))
 RIGHT_BRACE;
 
-filter_attr: ids | authors | kinds | tag_filter | since | until | limit; 
+filter_attr: ids | authors | kinds | tag_filter | since | until | limit;
 ids: '"ids":' LEFT_BRACKET hex64_string (COMMA hex64_string)* RIGHT_BRACKET;
 authors: '"authors":' LEFT_BRACKET hex64_string (COMMA hex64_string)* RIGHT_BRACKET;
 kinds: '"kinds":' LEFT_BRACKET number (COMMA number)* RIGHT_BRACKET;
@@ -137,32 +115,17 @@ since: '"since":' number;
 until: '"until":' number;
 limit: '"limit":' number;
 
-// TODO specific forms and catch-all generic form?
-tag_filter
-locals [valid_tags = True] :
-TAG_FILTER LEFT_BRACKET tvl+=tag_value (COMMA tvl+=tag_value)* RIGHT_BRACKET
-{
-filter = $TAG_FILTER.text[1:]
-if filter.startswith("#e") or filter.startswith("#p"):
-    for tv_ctx in $ctx.tvl:
-        if tv_ctx.utf8_string() is not None: 
-            print(f"Tag value parsed as utf-8")
-            $valid_tags = False
-            break
-        else:
-            if len(tv_ctx.hex_string().getText().strip('"')) != 64:
-                $valid_tags = False
-                break
-}
-{$valid_tags}?;
+// TODO finish with more filters
+tag_filter: (e_tag_filter | p_tag_filter);
+e_tag_filter: '"#e":' LEFT_BRACKET hex64_string (COMMA hex64_string)* RIGHT_BRACKET;
+p_tag_filter: '"#p":' LEFT_BRACKET hex64_string (COMMA hex64_string)* RIGHT_BRACKET;
 
-
-// 
+//
 // CLOSE parser rule
 //
 nostr_close: LEFT_BRACKET
              '"CLOSE"' COMMA
-             DOUBLE_QUOTE subscription_id DOUBLE_QUOTE 
+             DOUBLE_QUOTE subscription_id DOUBLE_QUOTE
              RIGHT_BRACKET;
 
 //
@@ -181,7 +144,7 @@ nostr_ok: LEFT_BRACKET
 //
 nostr_eose: LEFT_BRACKET
             '"EOSE"' COMMA
-            DOUBLE_QUOTE subscription_id DOUBLE_QUOTE 
+            DOUBLE_QUOTE subscription_id DOUBLE_QUOTE
             RIGHT_BRACKET;
 
 //
@@ -206,33 +169,32 @@ nostr_notice: LEFT_BRACKET
 //
 number: DEC_DIGIT+ { ((not $text.startswith("0")) or len($text) == 1) }?;
 
-hex_chars: (DEC_DIGIT | LOWER_HEX_DIGIT)+
+hex_chars: (DEC_DIGIT | LOWER_HEX_DIGIT)+;
 hex_string: DOUBLE_QUOTE hex_chars DOUBLE_QUOTE;
 hex64_string: DOUBLE_QUOTE hex_chars DOUBLE_QUOTE {len($text) == 64 + 2}?;
 hex128_string: DOUBLE_QUOTE hex_chars DOUBLE_QUOTE {len($text) == 128 + 2}?;
 
-utf8_chars: LEFT_BRACKET |
-            RIGHT_BRACKET |
-            LEFT_BRACE |
-            RIGHT_BRACE |
-            COMMA |
-            COLON |
-            DEC_DIGIT |
-            LOWER_HEX_DIGIT |
-            TAG_FILTER
-            TRUE_FALSE |
-            ESC_CHARS |
-            ASCII_NOT_ESCAPED |
-            UTF8_NOT_ESCAPED;
+ascii_chars: LEFT_BRACKET |
+             RIGHT_BRACKET |
+             LEFT_BRACE |
+             RIGHT_BRACE |
+             COMMA |
+             COLON |
+             DEC_DIGIT |
+             LOWER_HEX_DIGIT |
+             TAG_FILTER
+             TRUE_FALSE |
+             ESC_CHARS |
+             ASCII_NOT_ESCAPED;
+ascii_string: DOUBLE_QUOTE ascii_chars* DOUBLE_QUOTE;
 
+utf8_chars: ascii_chars | UTF8_NOT_ESCAPED;
 utf8_string: DOUBLE_QUOTE utf8_chars* DOUBLE_QUOTE;
 
-ascii_chars: ASCII_NOT_ESCAPED | ESC_CHARS;
-ascii_string: DOUBLE_QUOTE ascii_chars* DOUBLE_QUOTE;
 
 // Message format for OK and CLOSED messages has extra
 // validation on top of utf8_strings.
-utf8_message: utf8_string 
+utf8_message: utf8_string
 {(
 $text[1:].startswith("duplicate:") or
 $text[1:].startswith("pow:") or
@@ -251,12 +213,10 @@ RIGHT_BRACKET: ']';
 LEFT_BRACE: '{';
 RIGHT_BRACE: '}';
 COMMA: ',';
-COLON: ':'
+COLON: ':';
 DEC_DIGIT: [0-9];
 LOWER_HEX_DIGIT: DEC_DIGIT | [a-f];
 TAG_FILTER: '"#' [a-zA-Z] '":';
-SHORT_TAG: [0-9a-zA-Z];
-ASCII_TAG: S
 TRUE_FALSE: 'true' | 'false';
 ESC_CHARS: '\\' [btnfr"\\];
 ASCII_NOT_ESCAPED:
@@ -264,5 +224,52 @@ ASCII_NOT_ESCAPED:
   [\u{00000b}-\u{00000b}] | // escape 0x0c, 0x0d -> \f, \r
   [\u{00000e}-\u{000021}] | // escape 0x22 -> "
   [\u{000023}-\u{00005b}] | // escape 0x5c -> \
-  [\u{00005d}-\u{00007f};
+  [\u{00005d}-\u{00007f}];
 UTF8_NOT_ESCAPED: ASCII_NOT_ESCAPED | [\u{000080}-\u{10ffff}];
+
+
+
+//// Some stale example but useful to keep around as reference
+//// for now
+
+//tag_filter
+//locals [valid_tags = True] :
+//TAG_FILTER LEFT_BRACKET tvl+=tag_value (COMMA tvl+=tag_value)* RIGHT_BRACKET
+//{
+//filter = $TAG_FILTER.text[1:]
+//if filter.startswith("#e") or filter.startswith("#p"):
+//    for tv_ctx in $ctx.tvl:
+//        if tv_ctx.utf8_string() is not None:
+//            print(f"Tag value parsed as utf-8")
+//            $valid_tags = False
+//            break
+//        else:
+//            if len(tv_ctx.hex_string().getText().strip('"')) != 64:
+//                $valid_tags = False
+//                break
+//}
+//{$valid_tags}?;
+
+//tag
+//locals [valid_tag = True]:
+//LEFT_BRACKET tvl+=tag_value (COMMA tvl+=tag_value)* RIGHT_BRACKET
+//{
+//name = None
+//name_ctx = $ctx.tvl[0]
+//
+//if name_ctx.hex_string() is not None:
+//    name = name_ctx.hex_string().getText().strip('"')
+//else:
+//    name = name_ctx.utf8_string().getText().strip('"')
+//
+//print(f"Found tag name {name}")
+//
+//if name == "e" or name == "p":
+//    value_ctx = $ctx.tvl[1]
+//    if value_ctx.hex_string() is None:
+//        valid_tag = False
+//    else:
+//        value = value_ctx.hex_string().getText().strip('"')
+//        if len(value) != 64:
+//            valid_tag = False
+//};
