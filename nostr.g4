@@ -41,19 +41,19 @@ tag_array: (LEFT_BRACKET RIGHT_BRACKET) | (LEFT_BRACKET tag (COMMA tag)* RIGHT_B
 tag: LEFT_BRACKET (e_tag | p_tag | a_tag | generic_tag) RIGHT_BRACKET;
 
 // THOUGHT: embed existing structures into rules for generic strings to
-// try and fool parsing. We want to impose structure where we can (recursive issues)
+// try to fool parsing. We want to impose structure where we can (recursive issues)
 e_tag: '"e"' COMMA hex64_string (COMMA relay_url)?;
 p_tag: '"p"' COMMA hex64_string (COMMA relay_url)?;
 a_tag: '"a"' COMMA DOUBLE_QUOTE
                    number COLON
-                   hex_chars {len($hex_chars.text) == 64}? COLON
+                   hex64_chars COLON
                    utf8_chars*
                    DOUBLE_QUOTE (COMMA relay_url)?;
 
-generic_tag: ((DOUBLE_QUOTE ascii_chars DOUBLE_QUOTE) | ascii_string)
-             (COMMA (ascii_string | utf8_string))*;
+generic_tag: ((DOUBLE_QUOTE ascii_chars DOUBLE_QUOTE) | ascii_string) 
+             (COMMA (ascii_string | utf8_string))+;
 
-relay_url: RELAY_URL_PREFIX (ascii_chars+ PERIOD)+ ascii_chars+;
+relay_url: DOUBLE_QUOTE RELAY_URL_PREFIX (ascii_chars+ PERIOD)+ ascii_chars+ DOUBLE_QUOTE;
 
 // Subscription ID is non-empty and has at most 64 chars
 subscription_id: ({len($text) <= 64}? utf8_chars)+;
@@ -176,9 +176,9 @@ nostr_notice: LEFT_BRACKET
 //
 number: DEC_DIGIT+ { ((not $text.startswith("0")) or len($text) == 1) }?;
 
-hex_chars: (DEC_DIGIT | LOWER_HEX_DIGIT)+;
-hex64_string: DOUBLE_QUOTE hex_chars DOUBLE_QUOTE {len($text) == 64 + 2}?;
-hex128_string: DOUBLE_QUOTE hex_chars DOUBLE_QUOTE {len($text) == 128 + 2}?;
+hex64_chars: (DEC_DIGIT | LOWER_HEX_DIGIT)+ {len($text) == 64}?;
+hex64_string: DOUBLE_QUOTE (DEC_DIGIT | LOWER_HEX_DIGIT)+ DOUBLE_QUOTE {len($text) == 64 + 2}?;
+hex128_string: DOUBLE_QUOTE (DEC_DIGIT | LOWER_HEX_DIGIT)+ DOUBLE_QUOTE {len($text) == 128 + 2}?;
 
 ascii_chars: LEFT_BRACKET |
              RIGHT_BRACKET |
